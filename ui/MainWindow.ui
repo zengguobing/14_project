@@ -141,8 +141,8 @@
      <addaction name="actionjiechan2"/>
     </widget>
     <addaction name="menuImport"/>
-    <addaction name="actionCut"/>
     <addaction name="actionRegistration"/>
+    <addaction name="actionCut"/>
     <addaction name="actionqucankao"/>
     <addaction name="lvbo"/>
     <addaction name="jiechan"/>

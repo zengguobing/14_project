@@ -9,10 +9,10 @@
 #include<qmessagebox.h>
 #include<QFile>
 #include<QDir>
-#ifdef _DEBUG
-//#pragma comment(lib, "Utils_d.lib")
-#pragma comment(lib, "FormatConversion_d.lib")
-#endif
+//#ifdef _DEBUG
+////#pragma comment(lib, "Utils_d.lib")
+//#pragma comment(lib, "FormatConversion_d.lib")
+//#endif
 //#include<FormatConversion.h>
 Registration_ui::Registration_ui(QWidget* parent) :
     QWidget(parent),
@@ -181,9 +181,11 @@ void Registration_ui::ShowProjectList(QStandardItemModel *model)
     QStandardItem* node = NULL, * imagedata = NULL;
     for (int i = 0; i < count; i++)
     {
-        if (model->data(model->index(i, 1, pro_index)).toString().compare("complex-1.0") == 0 ||
-            model->data(model->index(i, 1, pro_index)).toString().compare("complex-0.0") == 0
-            )
+        int ret, mode;
+        double level;
+        string rank = model->data(model->index(i, 1, pro_index)).toString().toStdString();
+        ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+        if (ret == 2 && level <= 1.0)
         {
             ui->comboBox_2->addItem(model->data(model->index(i, 0, pro_index)).toString());
             ui->comboBox_node->addItem(model->data(model->index(i, 0, pro_index)).toString());
@@ -193,7 +195,6 @@ void Registration_ui::ShowProjectList(QStandardItemModel *model)
                 isnodefound = true;
             }
         }
-        
     }
     if (ui->comboBox_2->count() == 0)
     {
@@ -239,9 +240,11 @@ void Registration_ui::on_comboBox_currentIndexChanged()
         ui->comboBox_2->clear();
         for (int i = 0; i < count; i++)
         {
-            if (copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-1.0") == 0 ||
-                copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-0.0") == 0
-                )
+            int ret, mode;
+            double level;
+            string rank = copy->data(copy->index(i, 1, pro_index)).toString().toStdString();
+            ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+            if (ret == 2 && level <= 1.0)
             {
                 ui->comboBox_2->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
                 if (!node) node = project->child(i, 0);
@@ -288,9 +291,11 @@ void Registration_ui::on_comboBox_project_currentIndexChanged()
         ui->comboBox_node->clear();
         for (int i = 0; i < count; i++)
         {
-            if (copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-1.0") == 0 ||
-                copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-0.0") == 0
-                )
+            int ret, mode;
+            double level;
+            string rank = copy->data(copy->index(i, 1, pro_index)).toString().toStdString();
+            ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+            if (ret == 2 && level <= 1.0)
             {
                 ui->comboBox_node->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
                 if (!node) node = project->child(i, 0);
@@ -466,7 +471,11 @@ void Registration_ui::on_buttonBox_2_accepted()
     bool same_name_node = false;
     for (int i = 0; i < project->rowCount(); i++)
     {
-        if (ui->lineEdit_dstNode->text() == project->child(i)->text() && project->child(i, 1)->text() != "complex-2.0")
+        int ret, mode;
+        double level;
+        string rank = project->child(i, 1)->text().toStdString();
+        ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+        if (ui->lineEdit_dstNode->text() == project->child(i)->text() && level >= 2.0 && ret == 2)
         {
             same_name_node = true;
         }

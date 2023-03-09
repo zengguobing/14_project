@@ -29,6 +29,10 @@
 #include"S1_frame_merge.h"
 #include"import_CSK.h"
 #include"import_ALOS2.h"
+#include"import_RepeatPass.h"
+#include"import_SingleTransDoubleRecv.h"
+#include"import_PingPong.h"
+#include"import_DualFreqPingPong.h"
 #include"icon_source.h"
 //#include<Mould.h>
 
@@ -69,9 +73,12 @@ MainWindow::MainWindow(QWidget* parent)
     /*Ìí¼ÓAPPÍ¼±ê*/
     this->setWindowTitle("SatExplorer");
     this->setWindowIcon(QIcon(APP_ICON));
-    //ui.Process->setDisabled(1);
-    //ui.menuInSAR->setDisabled(1);
-    //ui.menuDInSAR->setDisabled(1);
+    ui.Process->setDisabled(1);
+    ui.menuSAR->setDisabled(1);
+    ui.menuInSAR->setDisabled(1);
+    ui.menuDInSAR->setDisabled(1);
+    ui.performance_evaluation->setDisabled(1);
+    ui.system_modelling->setDisabled(1);
 
     ui.treeView->init_tree();
     ui.tool->init_mould();
@@ -299,28 +306,29 @@ void MainWindow::open_from_project_file(QString str)
                         }
                         else if (!strcmp(j->Value(), "Data_Rank"))
                         {
-                            if (strcmp(j->GetText(), "complex-0.0") == 0 ||
-                                strcmp(j->GetText(), "complex-1.0") == 0 ||
-                                strcmp(j->GetText(), "complex-2.0") == 0 ||
-                                strcmp(j->GetText(), "complex-3.0") == 0
-                                )
+                            int mode, ret;
+                            double level;
+                            ret = sscanf(j->GetText(), "%d-complex-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("complex");
-                            else if (strcmp(j->GetText(), "phase-1.0") == 0 ||
-                                strcmp(j->GetText(), "phase-2.0") == 0 ||
-                                strcmp(j->GetText(), "phase-3.0") == 0 ||
-                                strcmp(j->GetText(), "phase-1.1") == 0 ||
-                                strcmp(j->GetText(), "phase-2.1") == 0 ||
-                                strcmp(j->GetText(), "phase-3.1") == 0
-                                )
+                            }
+                            ret = sscanf(j->GetText(), "%d-phase-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("phase");
-                            else if (strcmp(j->GetText(), "coherence-1.0") == 0 || strcmp(j->GetText(), "coherence-1.1") == 0)
+                            }
+                            ret = sscanf(j->GetText(), "%d-coherence-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("coherence");
-                            else if (strcmp(j->GetText(), "dem-1.0") == 0 || strcmp(j->GetText(), "dem-1.1") == 0)
+                            }
+                            ret = sscanf(j->GetText(), "%d-dem-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("dem");
-                            else if (strcmp(j->GetText(), "SBAS-1.0") == 0 || strcmp(j->GetText(), "SBAS-1.1") == 0)
-                                Data->setToolTip("SBAS");
-                            else if(strcmp(j->GetText(), "amplitude-1.0") == 0 || strcmp(j->GetText(), "amplitude-1.1") == 0)
-                                Data->setToolTip("amplitude");
+                            }
+
                         }
                         else if (!strcmp(j->Value(), "Data_Path"))
                         {
@@ -349,12 +357,18 @@ void MainWindow::update_treeview()
     {
         if (ui.treeView->model->rowCount() < 1)
         {
+            ui.system_modelling->setDisabled(1);
+            ui.performance_evaluation->setDisabled(1);
+            ui.menuSAR->setDisabled(1);
             ui.Process->setDisabled(1);
             ui.menuInSAR->setDisabled(1);
             ui.menuDInSAR->setDisabled(1);
         }
         else
         {
+            ui.system_modelling->setDisabled(0);
+            ui.performance_evaluation->setDisabled(0);
+            ui.menuSAR->setDisabled(0);
             ui.Process->setDisabled(0);
             ui.menuInSAR->setDisabled(0);
             ui.menuDInSAR->setDisabled(0);
@@ -454,23 +468,23 @@ void MainWindow::on_actionOpen_triggered()
 void MainWindow::on_actionRepeatPass_triggered()
 {
    
-    Import_TSX* TSX_win = new Import_TSX;
-    connect(this, &MainWindow::sendModel, TSX_win, &Import_TSX::ShowProjectList);
+    import_RepeatPass* RepeatPass = new import_RepeatPass();
+    connect(this, &MainWindow::sendModel, RepeatPass, &import_RepeatPass::ShowProjectList);
     emit sendModel(ui.treeView->model);
-    TSX_win->show();
+    RepeatPass->show();
     
-    connect(TSX_win, &Import_TSX::sendCopy, this, &MainWindow::RenewTree);
-    TSX_win->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(RepeatPass, &import_RepeatPass::sendCopy, this, &MainWindow::RenewTree);
+    RepeatPass->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 void MainWindow::on_actionSingleTransDoubleRecv_triggered()
 {
-    import_sentinel* sentinel_wnd = new import_sentinel;
-    connect(this, &MainWindow::sendModel, sentinel_wnd, &import_sentinel::ShowProjectList);
+    import_SingleTransDoubleRecv* SingleTransDoubleRecv = new import_SingleTransDoubleRecv;
+    connect(this, &MainWindow::sendModel, SingleTransDoubleRecv, &import_SingleTransDoubleRecv::ShowProjectList);
     emit sendModel(ui.treeView->model);
-    sentinel_wnd->show();
+    SingleTransDoubleRecv->show();
 
-    connect(sentinel_wnd, &import_sentinel::sendCopy, this, &MainWindow::RenewTree);
-    sentinel_wnd->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(SingleTransDoubleRecv, &import_SingleTransDoubleRecv::sendCopy, this, &MainWindow::RenewTree);
+    SingleTransDoubleRecv->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 void MainWindow::on_actionCut_triggered()
 {
@@ -636,23 +650,23 @@ void MainWindow::on_actionS1_frame_merge_triggered()
 }
 void MainWindow::on_actionPingPong_triggered()
 {
-    import_CSK* csk = new import_CSK;
-    connect(this, &MainWindow::sendModel, csk, &import_CSK::ShowProjectList);
+    import_PingPong* pingpong = new import_PingPong;
+    connect(this, &MainWindow::sendModel, pingpong, &import_PingPong::ShowProjectList);
     emit sendModel(ui.treeView->model);
-    csk->show();
+    pingpong->show();
 
-    connect(csk, &import_CSK::sendCopy, this, &MainWindow::RenewTree);
-    csk->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(pingpong, &import_PingPong::sendCopy, this, &MainWindow::RenewTree);
+    pingpong->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 void MainWindow::on_actionDualFreqPingPong_triggered()
 {
-    import_ALOS2* alos2 = new import_ALOS2;
-    connect(this, &MainWindow::sendModel, alos2, &import_ALOS2::ShowProjectList);
+    import_DualFreqPingPong* dualpingpong = new import_DualFreqPingPong;
+    connect(this, &MainWindow::sendModel, dualpingpong, &import_DualFreqPingPong::ShowProjectList);
     emit sendModel(ui.treeView->model);
-    alos2->show();
+    dualpingpong->show();
 
-    connect(alos2, &import_ALOS2::sendCopy, this, &MainWindow::RenewTree);
-    alos2->setAttribute(Qt::WA_DeleteOnClose, true);
+    connect(dualpingpong, &import_DualFreqPingPong::sendCopy, this, &MainWindow::RenewTree);
+    dualpingpong->setAttribute(Qt::WA_DeleteOnClose, true);
 }
 void MainWindow::RenewTree(QStandardItemModel* copy)
 {
@@ -663,6 +677,10 @@ void MainWindow::RenewTree(QStandardItemModel* copy)
         ui.tool->setHidden(0);
         ui.tabWidget->setHidden(0);
     }
+    if (!ui.system_modelling->isEnabled())
+        ui.system_modelling->setDisabled(0);
+    if (!ui.performance_evaluation->isEnabled())
+        ui.performance_evaluation->setDisabled(0);
     if(!ui.Process->isEnabled())
         ui.Process->setDisabled(0);
     if (!ui.menuInSAR->isEnabled())

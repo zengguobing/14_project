@@ -87,28 +87,28 @@ void OpenProject::on_buttonBox_accepted()
                         }
                         else if (!strcmp(j->Value(), "Data_Rank"))
                         {
-                            if (strcmp(j->GetText(), "complex-0.0") == 0 ||
-                                strcmp(j->GetText(), "complex-1.0") == 0 ||
-                                strcmp(j->GetText(), "complex-2.0") == 0 ||
-                                strcmp(j->GetText(), "complex-3.0") == 0
-                                )
+                            int mode, ret;
+                            double level;
+                            ret = sscanf(j->GetText(), "%d-complex-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("complex");
-                            else if (strcmp(j->GetText(), "phase-1.0") == 0 ||
-                                strcmp(j->GetText(), "phase-2.0") == 0 ||
-                                strcmp(j->GetText(), "phase-3.0") == 0 ||
-                                strcmp(j->GetText(), "phase-1.1") == 0 ||
-                                strcmp(j->GetText(), "phase-2.1") == 0 ||
-                                strcmp(j->GetText(), "phase-3.1") == 0
-                                )
+                            }
+                            ret = sscanf(j->GetText(), "%d-phase-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("phase");
-                            else if (strcmp(j->GetText(), "coherence-1.0") == 0 || strcmp(j->GetText(), "coherence-1.1") == 0)
+                            }
+                            ret = sscanf(j->GetText(), "%d-coherence-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("coherence");
-                            else if (strcmp(j->GetText(), "dem-1.0") == 0 || strcmp(j->GetText(), "dem-1.1") == 0)
+                            }
+                            ret = sscanf(j->GetText(), "%d-dem-%lf", &mode, &level);
+                            if (ret == 2)
+                            {
                                 Data->setToolTip("dem");
-                            else if (strcmp(j->GetText(), "SBAS-1.0") == 0 || strcmp(j->GetText(), "SBAS-1.1") == 0)
-                                Data->setToolTip("SBAS");
-                            else if (strcmp(j->GetText(), "amplitude-1.0") == 0 || strcmp(j->GetText(), "amplitude-1.1") == 0)
-                                Data->setToolTip("amplitude");
+                            }
                         }
                         else if (!strcmp(j->Value(), "Data_Path"))
                         {

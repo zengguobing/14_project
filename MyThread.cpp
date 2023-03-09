@@ -55,7 +55,114 @@ void MyThread::Import()
 {
 }
 
+void MyThread::import_RepeatPass(
+	QString savepath,
+	vector<QString> original_namelist,
+	vector<QString> import_namelist,
+	QString dst_node,
+	QString dst_project,
+	QStandardItemModel* model
+)
+{
+	if (savepath.isEmpty() ||
+		dst_node.isEmpty() ||
+		dst_project.isEmpty() ||
+		original_namelist.empty() ||
+		import_namelist.empty() ||
+		model == NULL
+		)
+	{
+		return;
+	}
+	int ret;
+	QDir dir(savepath);
+	if (!dir.exists(dst_node))
+		ret = dir.mkdir(dst_node);
+	int n_images = original_namelist.size();
+	int process = 2;
+	FormatConversion conversion;
+	DOC = new XMLFile;
+	emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	for (int i = 0; i < n_images; i++)
+	{
+		QString filename = import_namelist[i];
+		QString repeatpass_filename = original_namelist[i];
+		QString temp_folder = QString("/") + dst_node + QString("/");
+		QString relative_path = temp_folder + filename + ".h5";
+		QString h5_path = QString("%1%2%3.h5").arg(savepath).arg(temp_folder).arg(filename);
+		QFile::copy(repeatpass_filename, h5_path);
+		//CSK_reader csk_reader(repeatpass_filename.toStdString().c_str());
+		//ret = csk_reader.init();
+		//ret += csk_reader.write_to_h5(h5_path.toStdString().c_str());
+		//if (ret < 0 || QThread::currentThread()->isInterruptionRequested())
+		//{
+		//	emit errorProcess("unknown format!");
+		//	return;
+		//}
 
+		QStandardItem* project = model->findItems(dst_project)[0];
+		if (!project) {
+			QFile::remove(h5_path);
+			QDir tmp_dir(savepath + QString("/") + dst_node);
+			tmp_dir.removeRecursively();
+			return;
+		}
+		QModelIndex pro_index = model->indexFromItem(project);
+		QString pro_path = model->data(model->index(pro_index.row(), pro_index.column() + 1, pro_index.parent())).toString();
+		QStandardItem* origin = NULL;
+		for (int i = 0; i < project->rowCount(); i++)
+		{
+			if (dst_node == project->child(i)->text() && project->child(i, 1)->text() == "1-complex-0.0")
+			{
+				origin = project->child(i); break;
+			}
+		}
+		if (!origin)
+		{
+			origin = new QStandardItem(dst_node);
+			origin->setIcon(QIcon(FOLDER_ICON));
+			project->appendRow(origin);
+			QStandardItem* Rank = new QStandardItem("1-complex-0.0");
+			project->setChild(project->rowCount() - 1, 1, Rank);
+		}
+		QStandardItem* img = new QStandardItem(filename);
+		img->setToolTip("complex");
+		QStandardItem* img_path = new QStandardItem(h5_path);
+		img->setIcon(QIcon(IMAGEDATA_ICON));
+		origin->appendRow(img);
+		origin->setChild(origin->rowCount() - 1, 1, img_path);
+
+		ret = DOC->XMLFile_load(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+		if (ret < 0 || QThread::currentThread()->isInterruptionRequested())
+		{
+			QFile::remove(h5_path);
+			QDir tmp_dir(savepath + QString("/") + dst_node);
+			tmp_dir.removeRecursively();
+			return;
+		}
+		ret = DOC->XMLFile_add_origin_14(dst_node.toStdString().c_str(), filename.toStdString().c_str(), relative_path.toStdString().c_str(), 1,  "simulated");
+		if (ret < 0 || QThread::currentThread()->isInterruptionRequested())
+		{
+			QFile::remove(h5_path);
+			QDir tmp_dir(savepath + QString("/") + dst_node);
+			tmp_dir.removeRecursively();
+			return;
+		}
+		ret = DOC->XMLFile_save(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+		if (ret < 0 || QThread::currentThread()->isInterruptionRequested())
+		{
+			QFile::remove(h5_path);
+			QDir tmp_dir(savepath + QString("/") + dst_node);
+			tmp_dir.removeRecursively();
+			return;
+		}
+		process = double(i + 1) / double(n_images) * 100.0;
+		emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	}
+
+	emit sendModel(model);
+	emit endProcess();
+}
 
 void MyThread::import_sentinel(
 	QString PODFile,
@@ -913,11 +1020,6 @@ void MyThread::Cut(QList<double> para, QString save_path, QString project_name, 
 	
     for (int i = 0; i < image_number; i++)
     {
-		if (QThread::currentThread()->isInterruptionRequested())
-		{
-			dir.remove(dst_node);
-			return;
-		}
         ComplexMat SLC;
         int offset_row = 0;
         int offset_col = 0;
@@ -1013,113 +1115,14 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 	int image_number = node->rowCount();
 	QModelIndex pro_index = model->indexFromItem(project);
 	QStandardItem* Images_Cut = new QStandardItem(dst_node);
-	int insert = 0;
 	/*获取源节点数据等级信息*/
 	QString src_data_rank = project->child(src_node_index, 1)->text();
-	if (src_data_rank == QString("complex-0.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("complex-1.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("complex-2.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("complex-3.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-3.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("phase-1.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-3.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-1.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("phase-2.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-3.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-2.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("phase-3.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-3.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-3.0") == 0
-				)continue;
-			else break;
-		}
-	}
-	else if (src_data_rank == QString("dem-1.0"))
-	{
-		for (; insert < project->rowCount(); insert++)
-		{
-			if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("complex-3.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-1.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-2.0") == 0 ||
-				project->child(insert, 1)->text().compare("phase-3.0") == 0 ||
-				project->child(insert, 1)->text().compare("dem-1.0") == 0
-				)continue;
-			else break;
-		}
-	}
+
 	Images_Cut->setIcon(QIcon(FOLDER_ICON));
-	project->insertRow(insert, Images_Cut);
+	project->appendRow(Images_Cut);
 	Images_Cut->setToolTip(project_name);
 	QStandardItem* Images_Cut_Rank = new QStandardItem(src_data_rank);
-	project->setChild(insert, 1, Images_Cut_Rank);
+	project->setChild(project->rowCount() - 1, 1, Images_Cut_Rank);
 
 	emit updateProcess(10, QString::fromLocal8Bit("正在读取图片信息……"));
 
@@ -1127,12 +1130,6 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 	
 	for (int i = 0; i < image_number; i++)
 	{
-		if (QThread::currentThread()->isInterruptionRequested())
-		{
-			dir.remove(dst_node);
-			return;
-		}
-
 		ComplexMat SLC;
 		int offset_row = 0;
 		int offset_col = 0;
@@ -1164,7 +1161,10 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 		FC.write_int_to_h5(cut_h5_path.data(), "range_len", SLC.GetCols());
 		FC.write_int_to_h5(cut_h5_path.data(), "azimuth_len", SLC.GetRows());
 
-		if (src_data_rank != QString("complex-0.0"))
+		int ret, mode;
+		double level;
+		ret = sscanf(src_data_rank.toStdString().c_str(), "%d-complex-%lf", &mode, &level);
+		if (ret == 2 && level > 0.0)
 		{
 			int offset_row_old = 0, offset_col_old = 0;
 			FC.read_int_from_h5(path_str.toStdString().c_str(), "offset_row", &offset_row_old);
@@ -1184,7 +1184,7 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 		QByteArray dir_name = dst_node.toLocal8Bit();
 		QByteArray filename = QString("%1").arg(Cut_name).toLocal8Bit();
 		QByteArray file_relative_path = QString("/%1/%2.h5").arg(dst_node).arg(Cut_name).toLocal8Bit();
-		DOC->XMLFile_add_cut(dir_name.data(), filename.data(),
+		DOC->XMLFile_add_cut_14(dir_name.data(), filename.data(),
 			file_relative_path.data(),
 			offset_row, offset_col, 0, 0, 0, 0, src_data_rank.toStdString().c_str());
 		
@@ -1412,11 +1412,14 @@ void MyThread::DEMAssistCoregistration(
 	if (!project) return;
 	savepath = model->item(project->row(), 1)->text();
 	int images_number;
+	int rett = 0, mode = 1; double level = 0.0; string rank;
 	for (int i = 0; i < project->rowCount(); i++)
 	{
 		QStandardItem* images = project->child(i, 0);
 		if (images->text() == srcNode)
 		{
+			rank = project->child(i, 1)->text().toStdString();
+			rett = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
 			images_number = images->rowCount();
 			for (int j = 0; j < images_number; j++)
 			{
@@ -1475,7 +1478,7 @@ void MyThread::DEMAssistCoregistration(
 	conversion.write_int_to_h5(SAR_images_regis[masterIndex - 1].c_str(), "offset_col", offset_col);
 	conversion.Copy_para_from_h5_2_h5(SAR_images[masterIndex - 1].c_str(), SAR_images_regis[masterIndex - 1].c_str());
 	conversion.write_str_to_h5(SAR_images_regis[masterIndex - 1].c_str(), "process_state", "coregistration");
-	conversion.write_str_to_h5(SAR_images_regis[masterIndex - 1].c_str(), "comment", "complex-2.0");
+	conversion.write_str_to_h5(SAR_images_regis[masterIndex - 1].c_str(), "comment", rank.c_str());
 	
 	Utils::computeImageGeoBoundry(lat_coef, lon_coef, sceneHeight, sceneWidth, offset_row, offset_col,
 		&lonMax, &latMax, &lonMin, &latMin);
@@ -3631,6 +3634,255 @@ void MyThread::S1_frame_merge(int index1, int index2, QString project_name, QStr
 	xml.XMLFile_add_origin(dstNode.toStdString().c_str(), filename.toStdString().c_str(), relative_path.toStdString().c_str(), "sentinel");
 	xml.XMLFile_save((save_path + "/" + project_name).toStdString().c_str());
 	emit updateProcess(100, QString::fromLocal8Bit("完成……"));
+	emit endProcess();
+}
+
+void MyThread::import_SingleTransDoubleRecv(
+	QString savepath,
+	QString master_file,
+	QString slave_file,
+	QString dst_node,
+	QString dst_project,
+	QStandardItemModel* model
+)
+{
+	if (savepath.isEmpty() ||
+		dst_node.isEmpty() ||
+		dst_project.isEmpty() ||
+		master_file.isEmpty() ||
+		slave_file.isEmpty() ||
+		model == NULL
+		)
+	{
+		return;
+	}
+	int ret;
+	QDir dir(savepath);
+	if (!dir.exists(dst_node))
+		ret = dir.mkdir(dst_node);
+	int process = 2;
+	FormatConversion conversion;
+	DOC = new XMLFile;
+	emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+
+	QFileInfo fileinfo_master = QFileInfo(master_file);
+	QString master_name = fileinfo_master.baseName();
+	QFileInfo fileinfo_slave = QFileInfo(slave_file);
+	QString slave_name = fileinfo_slave.baseName();
+	QString temp_folder = QString("/") + dst_node + QString("/");
+
+	QString relative_path_master = temp_folder + master_name + ".h5";
+	QString h5_path_master = QString("%1%2%3.h5").arg(savepath).arg(temp_folder).arg(master_name);
+	QFile::copy(master_file, h5_path_master);
+	emit updateProcess(40, QString::fromLocal8Bit("正在导入..."));
+
+	QString relative_path_slave = temp_folder + slave_name + ".h5";
+	QString h5_path_slave = QString("%1%2%3.h5").arg(savepath).arg(temp_folder).arg(slave_name);
+	QFile::copy(slave_file, h5_path_slave);
+	emit updateProcess(80, QString::fromLocal8Bit("正在导入..."));
+
+
+	QStandardItem* project = model->findItems(dst_project)[0];
+
+	QModelIndex pro_index = model->indexFromItem(project);
+	QString pro_path = model->data(model->index(pro_index.row(), pro_index.column() + 1, pro_index.parent())).toString();
+	QStandardItem* origin = NULL;
+	for (int i = 0; i < project->rowCount(); i++)
+	{
+		if (dst_node == project->child(i)->text() && project->child(i, 1)->text() == "2-complex-0.0")
+		{
+			origin = project->child(i); break;
+		}
+	}
+	if (!origin)
+	{
+		origin = new QStandardItem(dst_node);
+		origin->setIcon(QIcon(FOLDER_ICON));
+		project->appendRow(origin);
+		QStandardItem* Rank = new QStandardItem("2-complex-0.0");
+		project->setChild(project->rowCount() - 1, 1, Rank);
+	}
+	QStandardItem* img = new QStandardItem(master_name);
+	img->setToolTip("complex");
+	QStandardItem* img_path = new QStandardItem(h5_path_master);
+	img->setIcon(QIcon(IMAGEDATA_ICON));
+	origin->appendRow(img);
+	origin->setChild(origin->rowCount() - 1, 1, img_path);
+
+	QStandardItem* img2 = new QStandardItem(slave_name);
+	img2->setToolTip("complex");
+	QStandardItem* img2_path = new QStandardItem(h5_path_slave);
+	img2->setIcon(QIcon(IMAGEDATA_ICON));
+	origin->appendRow(img2);
+	origin->setChild(origin->rowCount() - 1, 1, img2_path);
+
+	ret = DOC->XMLFile_load(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+	ret = DOC->XMLFile_add_origin_14(dst_node.toStdString().c_str(), master_name.toStdString().c_str(),
+		relative_path_master.toStdString().c_str(), 2, "simulated");
+	ret = DOC->XMLFile_save(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+
+	ret = DOC->XMLFile_load(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+	ret = DOC->XMLFile_add_origin_14(dst_node.toStdString().c_str(), slave_name.toStdString().c_str(),
+		relative_path_slave.toStdString().c_str(), 2, "simulated");
+	ret = DOC->XMLFile_save(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+
+	emit updateProcess(100, QString::fromLocal8Bit("正在导入..."));
+
+	emit sendModel(model);
+	emit endProcess();
+}
+
+void MyThread::import_PingPong(
+	vector<QString> import_file_list,
+	QString savepath,
+	QString dst_node, 
+	QString dst_project,
+	QStandardItemModel* model
+)
+{
+	if (savepath.isEmpty() ||
+		dst_node.isEmpty() ||
+		dst_project.isEmpty() ||
+		import_file_list.empty() ||
+		model == NULL
+		)
+	{
+		return;
+	}
+	int ret;
+	QDir dir(savepath);
+	if (!dir.exists(dst_node))
+		ret = dir.mkdir(dst_node);
+	int n_images = import_file_list.size();
+	int process = 2;
+	FormatConversion conversion;
+	DOC = new XMLFile;
+	emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	for (int i = 0; i < n_images; i++)
+	{
+		QFileInfo fileinfo = QFileInfo(import_file_list[i]);
+		QString filename = fileinfo.baseName();
+		QString original_filename = import_file_list[i];
+		QString temp_folder = QString("/") + dst_node + QString("/");
+		QString relative_path = temp_folder + filename + ".h5";
+		QString h5_path = QString("%1%2%3.h5").arg(savepath).arg(temp_folder).arg(filename);
+		QFile::copy(original_filename, h5_path);
+
+		QStandardItem* project = model->findItems(dst_project)[0];
+
+		QModelIndex pro_index = model->indexFromItem(project);
+		QString pro_path = model->data(model->index(pro_index.row(), pro_index.column() + 1, pro_index.parent())).toString();
+		QStandardItem* origin = NULL;
+		for (int i = 0; i < project->rowCount(); i++)
+		{
+			if (dst_node == project->child(i)->text() && project->child(i, 1)->text() == "3-complex-0.0")
+			{
+				origin = project->child(i); break;
+			}
+		}
+		if (!origin)
+		{
+			origin = new QStandardItem(dst_node);
+			origin->setIcon(QIcon(FOLDER_ICON));
+			project->appendRow(origin);
+			QStandardItem* Rank = new QStandardItem("3-complex-0.0");
+			project->setChild(project->rowCount() - 1, 1, Rank);
+		}
+		QStandardItem* img = new QStandardItem(filename);
+		img->setToolTip("complex");
+		QStandardItem* img_path = new QStandardItem(h5_path);
+		img->setIcon(QIcon(IMAGEDATA_ICON));
+		origin->appendRow(img);
+		origin->setChild(origin->rowCount() - 1, 1, img_path);
+
+		ret = DOC->XMLFile_load(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+
+		ret = DOC->XMLFile_add_origin_14(dst_node.toStdString().c_str(), filename.toStdString().c_str(), relative_path.toStdString().c_str(), 3, "simulated");
+	
+		ret = DOC->XMLFile_save(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+	
+		process = double(i + 1) / double(n_images) * 100.0;
+		emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	}
+
+	emit sendModel(model);
+	emit endProcess();
+}
+
+void MyThread::import_DualFreqPingPong(
+	vector<QString> import_file_list,
+	QString savepath,
+	QString dst_node,
+	QString dst_project,
+	QStandardItemModel* model
+)
+{
+	if (savepath.isEmpty() ||
+		dst_node.isEmpty() ||
+		dst_project.isEmpty() ||
+		import_file_list.empty() ||
+		model == NULL
+		)
+	{
+		return;
+	}
+	int ret;
+	QDir dir(savepath);
+	if (!dir.exists(dst_node))
+		ret = dir.mkdir(dst_node);
+	int n_images = import_file_list.size();
+	int process = 2;
+	FormatConversion conversion;
+	DOC = new XMLFile;
+	emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	for (int i = 0; i < n_images; i++)
+	{
+		QFileInfo fileinfo = QFileInfo(import_file_list[i]);
+		QString filename = fileinfo.baseName();
+		QString original_filename = import_file_list[i];
+		QString temp_folder = QString("/") + dst_node + QString("/");
+		QString relative_path = temp_folder + filename + ".h5";
+		QString h5_path = QString("%1%2%3.h5").arg(savepath).arg(temp_folder).arg(filename);
+		QFile::copy(original_filename, h5_path);
+
+		QStandardItem* project = model->findItems(dst_project)[0];
+
+		QModelIndex pro_index = model->indexFromItem(project);
+		QString pro_path = model->data(model->index(pro_index.row(), pro_index.column() + 1, pro_index.parent())).toString();
+		QStandardItem* origin = NULL;
+		for (int i = 0; i < project->rowCount(); i++)
+		{
+			if (dst_node == project->child(i)->text() && project->child(i, 1)->text() == "4-complex-0.0")
+			{
+				origin = project->child(i); break;
+			}
+		}
+		if (!origin)
+		{
+			origin = new QStandardItem(dst_node);
+			origin->setIcon(QIcon(FOLDER_ICON));
+			project->appendRow(origin);
+			QStandardItem* Rank = new QStandardItem("4-complex-0.0");
+			project->setChild(project->rowCount() - 1, 1, Rank);
+		}
+		QStandardItem* img = new QStandardItem(filename);
+		img->setToolTip("complex");
+		QStandardItem* img_path = new QStandardItem(h5_path);
+		img->setIcon(QIcon(IMAGEDATA_ICON));
+		origin->appendRow(img);
+		origin->setChild(origin->rowCount() - 1, 1, img_path);
+
+		ret = DOC->XMLFile_load(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+
+		ret = DOC->XMLFile_add_origin_14(dst_node.toStdString().c_str(), filename.toStdString().c_str(), relative_path.toStdString().c_str(), 4, "simulated");
+
+		ret = DOC->XMLFile_save(QString("%1/%2").arg(pro_path).arg(dst_project).toStdString().c_str());
+
+		process = double(i + 1) / double(n_images) * 100.0;
+		emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
+	}
+
+	emit sendModel(model);
 	emit endProcess();
 }
 

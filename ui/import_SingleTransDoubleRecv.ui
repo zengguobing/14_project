@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ui version="4.0">
+ <class>import_SingleTransDoubleRecv</class>
+ <widget class="QWidget" name="import_SingleTransDoubleRecv">
+  <property name="geometry">
+   <rect>
+    <x>0</x>
+    <y>0</y>
+    <width>496</width>
+    <height>251</height>
+   </rect>
+  </property>
+  <property name="windowTitle">
+   <string>导入单发双收数据</string>
+  </property>
+  <property name="windowIcon">
+   <iconset resource="../QtWidgetsApplication3.qrc">
+    <normaloff>:/QtWidgetsApplication3/bin/icon/InSARapp.ico</normaloff>:/QtWidgetsApplication3/bin/icon/InSARapp.ico</iconset>
+  </property>
+  <layout class="QVBoxLayout" name="verticalLayout">
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_4" stretch="3,5,2">
+     <item>
+      <widget class="QLabel" name="label">
+       <property name="text">
+        <string>主发主收图像</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEdit_master"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_master">
+       <property name="text">
+        <string>浏览</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="3,5,2">
+     <item>
+      <widget class="QLabel" name="label_2">
+       <property name="text">
+        <string>主发辅收图像</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEdit_slave"/>
+     </item>
+     <item>
+      <widget class="QPushButton" name="pushButton_slave">
+       <property name="text">
+        <string>浏览</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,7">
+     <item>
+      <widget class="QLabel" name="label_3">
+       <property name="text">
+        <string>选择导入工程</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QComboBox" name="comboBox_dst_project"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_2" stretch="3,7">
+     <item>
+      <widget class="QLabel" name="label_4">
+       <property name="text">
+        <string>选择导入节点</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QLineEdit" name="lineEdit_dst_node"/>
+     </item>
+    </layout>
+   </item>
+   <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_5">
+     <item>
+      <widget class="QProgressBar" name="progressBar">
+       <property name="value">
+        <number>24</number>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QDialogButtonBox" name="buttonBox">
+       <property name="standardButtons">
+        <set>QDialogButtonBox::Cancel|QDialogButtonBox::Ok</set>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+  </layout>
+ </widget>
+ <resources>
+  <include location="../QtWidgetsApplication3.qrc"/>
+ </resources>
+ <connections/>
+</ui>

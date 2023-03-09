@@ -16,6 +16,9 @@ public:
 	MyThread(QObject* parent = nullptr);
 	~MyThread();
 public slots:
+
+	
+
 	void Import();
 	/** @brief 导入sentinel数据
 	* @param PODFile                      哨兵一号精轨数据
@@ -333,6 +336,71 @@ public slots:
 		QString dstNode,
 		QStandardItemModel* model
 	);
+
+	/*@brief 导入单发单收数据
+	* @param savepath                     保存路径
+	* @param original_namelist            原始数据文件名数组
+	* @param import_namelist              导入后文件名数组
+	* @param dst_node                     导入工程节点名
+	* @param dst_project                  导入工程名
+	* @param model                        工程树模型
+	*/
+	void import_RepeatPass(
+		QString savepath,
+		vector<QString> original_namelist,
+		vector<QString> import_namelist,
+		QString dst_node,
+		QString dst_project,
+		QStandardItemModel* model
+	);
+
+	/*@brief 导入单发双收数据
+	* @param savepath                     保存路径
+	* @param master_file                  主图文件
+	* @param slave_file                   辅图文件
+	* @param dst_node                     导入工程节点名
+	* @param dst_project                  导入工程名
+	* @param model                        工程树模型
+	*/
+	void import_SingleTransDoubleRecv(
+		QString savepath,
+		QString master_file,
+		QString slave_file,
+		QString dst_node,
+		QString dst_project,
+		QStandardItemModel* model
+	);
+
+	/*@brief 导入乒乓模式数据
+	* @param import_file_list             导入文件list
+	* @param savepath                     保存路径
+	* @param dst_node                     导入工程节点名
+	* @param dst_project                  导入工程名
+	* @param model                        工程树模型
+	*/
+	void import_PingPong(
+		vector<QString> import_file_list,
+		QString savepath,
+		QString dst_node,
+		QString dst_project,
+		QStandardItemModel* model
+	);
+
+	/*@brief 导入双频乒乓模式数据
+	* @param import_file_list             导入文件list
+	* @param savepath                     保存路径
+	* @param dst_node                     导入工程节点名
+	* @param dst_project                  导入工程名
+	* @param model                        工程树模型
+	*/
+	void import_DualFreqPingPong(
+		vector<QString> import_file_list,
+		QString savepath,
+		QString dst_node,
+		QString dst_project,
+		QStandardItemModel* model
+	);
+
 	void Baseline_Estimate(int index, QString project_name, QString dst_node, const QStandardItemModel*);
 	void Interferometric(bool isdeflat, bool istopo_removal, bool iscoherence, int master_index, int win_r, int win_c,
 		int multilook_row, int multilook_col, QString, QString, QString, QString, QStandardItemModel*);

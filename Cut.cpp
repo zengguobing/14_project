@@ -14,7 +14,7 @@ Cut::Cut(QWidget* parent) :
     ui(new Ui::Cut)
 {
     ui->setupUi(this);
-    ui->tabWidget->setCurrentIndex(0);
+    ui->tabWidget->setCurrentIndex(1);
     //this->DOC = new XMLFile;
     ui->progressBar->setHidden(1);
     ui->progressBar_2->setHidden(1);
@@ -195,15 +195,18 @@ void Cut::ShowProjectList(QStandardItemModel *model)
     ui->comboBox_4->clear();
     for (int i = 0; i < count; i++)
     {
-        if(model->data(model->index(i, 1, pro_index)).toString().compare("complex-0.0")==0)
-            ui->comboBox_2->addItem(model->data(model->index(i,0,pro_index)).toString());
-        if( model->data(model->index(i, 1, pro_index)).toString().compare("complex-0.0") == 0 ||
-            model->data(model->index(i, 1, pro_index)).toString().compare("complex-1.0") == 0 ||
-            model->data(model->index(i, 1, pro_index)).toString().compare("complex-2.0") == 0 ||
-            model->data(model->index(i, 1, pro_index)).toString().compare("complex-3.0") == 0
-            )
+        int mode, ret;
+        double level;
+        string rank = model->data(model->index(i, 1, pro_index)).toString().toStdString();
+        ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+        if (ret == 2)
+        {
+            if (level <= 0.0)
+            {
+                ui->comboBox_2->addItem(model->data(model->index(i, 0, pro_index)).toString());
+            }
             ui->comboBox_4->addItem(model->data(model->index(i, 0, pro_index)).toString());
-        
+        }
     }
     if (ui->comboBox_2->count() == 0)
     {
@@ -217,19 +220,25 @@ void Cut::on_comboBox_currentIndexChanged()
 {
     if (ui->comboBox->count() != 0)
     {
-        //this->save_path = copy->item(ui->comboBox->currentIndex(), 1)->text();
         QStandardItem* project = copy->findItems(ui->comboBox->currentText())[0];
         this->save_path = copy->item(project->row(), 1)->text();
         QModelIndex pro_index = copy->indexFromItem(project);
         int count = project->rowCount();
         ui->comboBox_2->clear();
-        //ui->comboBox_2->setMaxCount(count);
         for (int i = 0; i < count; i++)
         {
-            if (copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-0.0") == 0)
-                ui->comboBox_2->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
+            int mode, ret;
+            double level;
+            string rank = copy->data(copy->index(i, 1, pro_index)).toString().toStdString();
+            ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+            if (ret == 2)
+            {
+                if (level <= 0.0)
+                {
+                    ui->comboBox_2->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
+                }
+            }
         }
-        //ui->comboBox_2->setCurrentIndex(0);
     }
 
 }
@@ -286,21 +295,26 @@ void Cut::on_comboBox_3_currentIndexChanged()
 {
     if (ui->comboBox_3->count() != 0)
     {
-        //this->save_path = copy->item(ui->comboBox->currentIndex(), 1)->text();
         QStandardItem* project = copy->findItems(ui->comboBox->currentText())[0];
         this->save_path = copy->item(project->row(), 1)->text();
         QModelIndex pro_index = copy->indexFromItem(project);
         int count = project->rowCount();
         ui->comboBox_4->clear();
-        //ui->comboBox_2->setMaxCount(count);
         for (int i = 0; i < count; i++)
         {
-            if (copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-2.0") == 0 ||
-                copy->data(copy->index(i, 1, pro_index)).toString().compare("complex-3.0") == 0
-                )
-                ui->comboBox_4->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
+            int mode, ret;
+            double level;
+            string rank = copy->data(copy->index(i, 1, pro_index)).toString().toStdString();
+            ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+            if (ret == 2)
+            {
+                if (level >= 2.0)
+                {
+                    ui->comboBox_4->addItem(copy->data(copy->index(i, 0, pro_index)).toString());
+                }
+            }
         }
-        //ui->comboBox_2->setCurrentIndex(0);
+
     }
 }
 
