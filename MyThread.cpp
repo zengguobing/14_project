@@ -1470,6 +1470,8 @@ void MyThread::DEMAssistCoregistration(
 	conversion.read_slc_from_h5(master_file, slave);
 	Mat Row_offset(images_number, 1, CV_32S); Row_offset.at<int>(masterIndex - 1, 0) = 0;
 	Mat Col_offset(images_number, 1, CV_32S); Col_offset.at<int>(masterIndex - 1, 0) = 0;
+
+
 	conversion.creat_new_h5(SAR_images_regis[masterIndex - 1].c_str());
 	conversion.write_slc_to_h5(SAR_images_regis[masterIndex - 1].c_str(), slave);
 	conversion.write_int_to_h5(SAR_images_regis[masterIndex - 1].c_str(), "range_len", slave.GetCols());
@@ -1486,50 +1488,596 @@ void MyThread::DEMAssistCoregistration(
 	coregis.getDEMRgAzPos(dem, statevec, rangePos, azimuthPos, lon_upperleft, lat_upperleft, offset_row, offset_col,
 		sceneHeight, sceneWidth, prf, rangeSpacing, wavelength, nearRangeTime, start, end, 5.0 / 6000.0, 5.0 / 6000.0);
 	int count = 0;
-	for (int i = 0; i < images_number; i++)
+	char new_rank[256];
+	sprintf(new_rank, "%d-complex-2.0", mode);
+	if (mode == 1)//单发单收模式
 	{
-		if (i == masterIndex - 1) continue;
-		int offset_r, offset_c;
-		offset_row2 = offset_col2 = 0;
-		slave_file = SAR_images[i].c_str();
-		conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
-		conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
-		conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
-		conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
-		conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
-		conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
-		conversion.read_double_from_h5(slave_file, "prf", &prf2);
-		conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
-		conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
-		nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
-		conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
-		conversion.utc2gps(start_time.c_str(), &start2);
-		conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
-		conversion.utc2gps(end_time.c_str(), &end2);
-		conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
-		conversion.read_slc_from_h5(slave_file, slave);
+		for (int i = 0; i < images_number; i++)
+		{
+			if (i == masterIndex - 1) continue;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
 
-		coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
-			sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
 
-		coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
-		coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
-		coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
-		coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
-		conversion.creat_new_h5(SAR_images_regis[i].c_str());
-		conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
-		conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
-		conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
-		conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
-		Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
-		conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
-		Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
-		conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
-		conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
-		conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", "complex-2.0");
-		count++;
-		emit updateProcess(10 + double(count) / double(images_number - 1) * 80, QString::fromLocal8Bit("正在处理..."));
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(10 + double(count) / double(images_number - 1) * 80, QString::fromLocal8Bit("正在处理..."));
+		}
 	}
+
+	else if (mode == 2)//单发双收模式
+	{
+		for (int i = 0; i < images_number; i++)
+		{
+			if (i == masterIndex - 1) continue;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
+
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(10 + double(count) / double(images_number - 1) * 80, QString::fromLocal8Bit("正在处理..."));
+		}
+	}
+
+	else if (mode == 3)//乒乓模式
+	{
+		if (masterIndex <= 2)//选择主图作为参考进行配准
+		{
+			int i;
+			//写入主图
+			if (masterIndex == 1)
+			{
+				i = 1;
+			}
+			else
+			{
+				i = 0;
+			}
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			
+
+
+			i = 3;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+
+			//处理第一幅
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(40, QString::fromLocal8Bit("正在处理..."));
+
+			//处理第二幅
+			i = 2;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(80, QString::fromLocal8Bit("正在处理..."));
+
+
+		}
+		else//选择辅图作为参考进行配准
+		{
+			int i = 0;
+			//写入主图
+			if (masterIndex == 3)
+			{
+				i = 3;
+			}
+			else
+			{
+				i = 2;
+			}
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+
+
+
+			i = 0;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+
+			//处理第一幅
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(40, QString::fromLocal8Bit("正在处理..."));
+
+			//处理第二幅
+			i = 1;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(80, QString::fromLocal8Bit("正在处理..."));
+		}
+	}
+	else //双频乒乓模式
+	{
+		if (masterIndex <= 2 || masterIndex == 5 || masterIndex == 6)//选择主图作为参考进行配准
+		{
+			int i = 0;
+			//写入不用配准处理的图像
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 1;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 4;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 5;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+
+			//配准处理
+			i = 3;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+
+			//处理第一幅
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(20, QString::fromLocal8Bit("正在处理..."));
+
+			//处理第二幅
+			i = 2;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(40, QString::fromLocal8Bit("正在处理..."));
+
+
+			//处理第三幅
+			i = 7;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(60, QString::fromLocal8Bit("正在处理..."));
+
+
+			//处理第四幅
+			i = 6;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(80, QString::fromLocal8Bit("正在处理..."));
+		}
+		else//选择辅图作为参考进行配准（第3、4、7、8幅图）
+		{
+			int i = 2;
+			//写入不用配准处理的图像
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 3;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 6;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+			i = 7;
+			conversion.read_slc_from_h5(SAR_images[i].c_str(), slave);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col);
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis[i].c_str());
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis[i].c_str(), "comment", rank.c_str());
+
+
+			//配准处理
+			i = 0;
+			int offset_r, offset_c;
+			offset_row2 = offset_col2 = 0;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_int_from_h5(slave_file, "range_len", &sceneWidth2);
+			conversion.read_int_from_h5(slave_file, "azimuth_len", &sceneHeight2);
+			conversion.read_int_from_h5(slave_file, "offset_row", &offset_row2);
+			conversion.read_int_from_h5(slave_file, "offset_col", &offset_col2);
+			conversion.read_array_from_h5(slave_file, "lon_coefficient", lon_coef2);
+			conversion.read_array_from_h5(slave_file, "lat_coefficient", lat_coef2);
+			conversion.read_double_from_h5(slave_file, "prf", &prf2);
+			conversion.read_double_from_h5(slave_file, "range_spacing", &rangeSpacing2);
+			conversion.read_double_from_h5(slave_file, "slant_range_first_pixel", &nearRangeTime2);
+			nearRangeTime2 = 2.0 * nearRangeTime2 / VEL_C;
+			conversion.read_str_from_h5(slave_file, "acquisition_start_time", start_time);
+			conversion.utc2gps(start_time.c_str(), &start2);
+			conversion.read_str_from_h5(slave_file, "acquisition_stop_time", end_time);
+			conversion.utc2gps(end_time.c_str(), &end2);
+			conversion.read_array_from_h5(slave_file, "state_vec", statevec2);
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.getDEMRgAzPos(dem, statevec2, rangePos2, azimuthPos2, lon_upperleft, lat_upperleft, offset_row2, offset_col2,
+				sceneHeight2, sceneWidth2, prf2, rangeSpacing2, wavelength, nearRangeTime2, start2, end2, 5.0 / 6000.0, 5.0 / 6000.0);
+			coregis.computeSlaveOffset(rangePos, azimuthPos, rangePos2, azimuthPos2, slaveAzimuthOffset, slaveRangeOffset);
+			coregis.fitSlaveOffset(slaveAzimuthOffset, rangePos, azimuthPos, &a0, &a1, &a2);
+			coregis.fitSlaveOffset(slaveRangeOffset, rangePos, azimuthPos, &b0, &b1, &b2);
+
+			//处理第一幅
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(20, QString::fromLocal8Bit("正在处理..."));
+
+			//处理第二幅
+			i = 1;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(40, QString::fromLocal8Bit("正在处理..."));
+
+
+			//处理第三幅
+			i = 4;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(60, QString::fromLocal8Bit("正在处理..."));
+
+
+			//处理第四幅
+			i = 5;
+			slave_file = SAR_images[i].c_str();
+			conversion.read_slc_from_h5(slave_file, slave);
+			coregis.performBilinearResampling(slave, sceneHeight, sceneWidth, b0, b1, b2, a0, a1, a2, &offset_r, &offset_c);
+			conversion.creat_new_h5(SAR_images_regis[i].c_str());
+			conversion.write_slc_to_h5(SAR_images_regis[i].c_str(), slave);
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "range_len", slave.GetCols());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "azimuth_len", slave.GetRows());
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_row", offset_row2 + offset_r);
+			Row_offset.at<int>(i, 0) = offset_row2 + offset_r;
+			conversion.write_int_to_h5(SAR_images_regis[i].c_str(), "offset_col", offset_col2 + offset_c);
+			Col_offset.at<int>(i, 0) = offset_col2 + offset_c;
+			conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_regis.at(i).c_str());
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "process_state", "coregistration");
+			conversion.write_str_to_h5(SAR_images_regis.at(i).c_str(), "comment", new_rank);
+			count++;
+			emit updateProcess(80, QString::fromLocal8Bit("正在处理..."));
+		}
+	}
+
+	
 
 
 	/*建立配准根节点*/
@@ -1538,24 +2086,19 @@ void MyThread::DEMAssistCoregistration(
 	int insert = 0;
 	for (; insert < project->rowCount(); insert++)
 	{
-		if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-			project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-			project->child(insert, 1)->text().compare("complex-2.0") == 0)
-			continue;
-		else
-			break;
+		int mode2; double level2;
+		string str_tmp = project->child(insert, 1)->text().toStdString();
+		int ret = sscanf(str_tmp.c_str(), "%d-complex-%lf", &mode2, &level2);
+		if (ret == 2 && level2 <= 2.0) continue;
+		else break;
 	}
 	regis->setIcon(QIcon(FOLDER_ICON));
 	project->insertRow(insert, regis);
-	QStandardItem* regis_Rank = new QStandardItem("complex-2.0");
+	QStandardItem* regis_Rank = new QStandardItem(new_rank);
 	project->setChild(insert, 1, regis_Rank);
 	QString temporal_baseline, B_parallel, B_effect;
 	for (int i = 0; i < images_number; i++)
 	{
-		if (QThread::currentThread()->isInterruptionRequested())
-		{
-			return;
-		}
 		QFileInfo fileinfo = QFileInfo(QString(SAR_images_regis.at(i).c_str()));
 		QStandardItem* regis_images_name = new QStandardItem(fileinfo.baseName());
 		regis_images_name->setToolTip("complex");
@@ -1574,12 +2117,8 @@ void MyThread::DEMAssistCoregistration(
 	xmlfile.XMLFile_load((QString(savepath) + "/" + project_name).toStdString().c_str());
 	for (int i = 0; i < images_number; i++)
 	{
-		if (QThread::currentThread()->isInterruptionRequested())
-		{
-			return;
-		}
 		QString relativePath = QString("/%1/%2").arg(dstNode).arg(origin.at(i) + "_regis.h5");
-		xmlfile.XMLFile_add_regis(dstNode.toStdString().c_str(), (origin.at(i) + "_regis").toStdString().c_str(), 
+		xmlfile.XMLFile_add_regis14(mode, dstNode.toStdString().c_str(), (origin.at(i) + "_regis").toStdString().c_str(), 
 			relativePath.toStdString().c_str(),
 			Row_offset.at<int>(i, 0), Col_offset.at<int>(i, 0), masterIndex, -1, -1,
 			temporal_baseline.toStdString().c_str(), B_effect.toStdString().c_str(), B_parallel.toStdString().c_str());
