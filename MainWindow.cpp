@@ -577,6 +577,16 @@ void MainWindow::on_actionSLC_deramp_triggered()
     deramp->show();
     deramp->setAttribute(Qt::WA_DeleteOnClose, true);
 }
+
+void MainWindow::on_actionqucankao_triggered()
+{
+    SLC_deramp* deramp = new SLC_deramp();
+    connect(this, &MainWindow::sendModel, deramp, &SLC_deramp::ShowProjectList);
+    emit sendModel(ui.treeView->model);
+    deramp->show();
+    deramp->setAttribute(Qt::WA_DeleteOnClose, true);
+}
+
 void MainWindow::on_actionBaseline_Formation_triggered()
 {
     Baseline_Formation* BF = new Baseline_Formation();

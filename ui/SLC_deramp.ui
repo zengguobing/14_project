@@ -19,6 +19,24 @@
   </property>
   <layout class="QVBoxLayout" name="verticalLayout">
    <item>
+    <layout class="QHBoxLayout" name="horizontalLayout_3" stretch="5,5">
+     <item>
+      <widget class="QRadioButton" name="radioButton_flat">
+       <property name="text">
+        <string>去除平地相位</string>
+       </property>
+      </widget>
+     </item>
+     <item>
+      <widget class="QRadioButton" name="radioButton_reference">
+       <property name="text">
+        <string>去除参考地形相位</string>
+       </property>
+      </widget>
+     </item>
+    </layout>
+   </item>
+   <item>
     <layout class="QHBoxLayout" name="horizontalLayout" stretch="3,7">
      <item>
       <widget class="QLabel" name="label_2">

@@ -7,6 +7,7 @@
 #include<Unwrap.h>
 #include<Dem.h>
 #include"SBAS.h"
+#include"SLC_simulator.h"
 #include<QMessageBox>
 #include<qcoreapplication.h>
 #ifdef _DEBUG
@@ -19,6 +20,7 @@
 #pragma comment(lib, "Unwrap_d.lib")
 #pragma comment(lib, "Dem_d.lib")
 #pragma comment(lib, "SBAS_d.lib")
+#pragma comment(lib, "simulation_d.lib")
 #else
 #pragma comment(lib, "Utils.lib")
 #pragma comment(lib, "Deflat.lib")
@@ -29,6 +31,7 @@
 #pragma comment(lib, "Unwrap.lib")
 #pragma comment(lib, "Dem.lib")
 #pragma comment(lib, "SBAS.lib")
+#pragma comment(lib, "simulation.lib")
 #endif
 #define PI 3.141592653589793238
 
@@ -1063,7 +1066,7 @@ void MyThread::Cut(QList<double> para, QString save_path, QString project_name, 
         QByteArray dir_name = dst_node.toLocal8Bit();
         QByteArray filename = QString("%1").arg(Cut_name).toLocal8Bit();
         QByteArray file_relative_path = QString("/%1/%2.h5").arg(dst_node).arg(Cut_name).toLocal8Bit();
-        DOC->XMLFile_add_cut(dir_name.data(), filename.data(),
+        DOC->XMLFile_add_cut(dir_name.data(),-1, filename.data(),
             file_relative_path.data(),
             offset_row, offset_col, para.at(0), para.at(1),
            para.at(2), para.at(3), "complex-1.0");
@@ -1098,6 +1101,20 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 	QByteArray file_abs_path = QString("%1/%2").arg(save_path).arg(project_name).toLocal8Bit();
 	DOC->XMLFile_load(file_abs_path.data());
 
+	//查找被裁剪节点是否存在主节点
+	int master_index = -1;
+	TiXmlElement* DataNode = NULL;
+	int ret = DOC->find_node_with_attribute("DataNode", "name", node_name.toStdString().c_str(), DataNode);
+	if (ret == 0 && DataNode)
+	{
+		TiXmlElement* pnode = NULL;
+		ret = DOC->_find_node(DataNode, "master_image", pnode);
+		if (ret == 0 && pnode)
+		{
+			ret = sscanf(pnode->GetText(), "%d", &master_index);
+			if (ret != 1) master_index = -1;
+		}
+	}
 	QStandardItem* project = model->findItems(project_name)[0];
 	QStandardItem* node;
 	int src_node_index = 0;
@@ -1184,7 +1201,7 @@ void MyThread::Cut2(double h5_left, double h5_right, double h5_top, double h5_bo
 		QByteArray dir_name = dst_node.toLocal8Bit();
 		QByteArray filename = QString("%1").arg(Cut_name).toLocal8Bit();
 		QByteArray file_relative_path = QString("/%1/%2.h5").arg(dst_node).arg(Cut_name).toLocal8Bit();
-		DOC->XMLFile_add_cut_14(dir_name.data(), filename.data(),
+		DOC->XMLFile_add_cut_14(dir_name.data(), master_index, filename.data(),
 			file_relative_path.data(),
 			offset_row, offset_col, 0, 0, 0, 0, src_data_rank.toStdString().c_str());
 		
@@ -2641,6 +2658,7 @@ void MyThread::S1_TOPS_BackGeocoding(
 
 void MyThread::SLC_deramp(
 	int masterIndex,
+	int flat_mode,
 	QString project_name,
 	QString src_node,
 	QString dst_node,
@@ -2670,15 +2688,22 @@ void MyThread::SLC_deramp(
 	QStandardItem* image = NULL;
 	if (!project) return;
 	QString save_path = model->item(project->row(), 1)->text();
+	int mode, ret; double level;
+	string rank1;
 	for (int i = 0; i < project->rowCount(); i++)
 	{
+		
 		if (project->child(i, 0)->text() == src_node)
 		{
+			rank1 = project->child(i, 1)->text().toStdString();
+			ret = sscanf(rank1.c_str(), "%d-complex-%lf", &mode, &level);
 			image = project->child(i, 0);
 			break;
 		}
 	}
 	if (!image) return;
+	char rank[256];
+	sprintf(rank, "%d-complex-3.0", mode);
 	int image_number = image->rowCount();
 	for (int i = 0; i < image->rowCount(); i++)
 	{
@@ -2690,7 +2715,7 @@ void MyThread::SLC_deramp(
 			.arg(origin_name).toStdString());
 	}
 	emit updateProcess(10, QString::fromLocal8Bit("开始计算……"));
-	int ret;
+	
 	QDir dir(save_path);
 	if (!dir.exists(dst_node))dir.mkdir(dst_node);
 	for (int i = 0; i < image_number; i++)
@@ -2702,6 +2727,7 @@ void MyThread::SLC_deramp(
 	int sceneHeight, sceneWidth, offset_row, offset_col;
 	Mat lon_coef, lat_coef, dem, mappedDem, statevec;
 	ComplexMat slc;
+	SLC_simulator simulation;
 	string start_time, end_time, master_file;
 	master_file = SAR_images[masterIndex - 1];
 	ret = conversion.read_int_from_h5(master_file.c_str(), "range_len", &sceneWidth);
@@ -2727,6 +2753,7 @@ void MyThread::SLC_deramp(
 	Mat mappedLon, mappedLat;
 	ret = flat.demMapping(dem, mappedDem, mappedLat, mappedLon, lon_upperleft, lat_upperleft, offset_row, offset_col, sceneHeight, sceneWidth,
 		prf, rangeSpacing, wavelength, nearRangeTime, start, end, statevec, 20);
+	if (flat_mode == 1) mappedDem = 0.0;
 	//mappedDem = 0;
 	/*建立deramp根节点*/
 	QStandardItem* deramp = new QStandardItem(dst_node);
@@ -2734,45 +2761,64 @@ void MyThread::SLC_deramp(
 	int insert = 0;
 	for (; insert < project->rowCount(); insert++)
 	{
-		if (project->child(insert, 1)->text().compare("complex-0.0") == 0 ||
-			project->child(insert, 1)->text().compare("complex-1.0") == 0 ||
-			project->child(insert, 1)->text().compare("complex-2.0") == 0 ||
-			project->child(insert, 1)->text().compare("complex-3.0") == 0
-			)
-			continue;
+		string rank2 = project->child(insert, 1)->text().toStdString();
+		int mode2; double level2;
+		ret = sscanf(rank2.c_str(), "%d-complex-%lf", &mode2, &level2);
+		if (ret == 2 && level2 <= 3.0) continue;
 		else
+		{
 			break;
+		}
 	}
 	deramp->setIcon(QIcon(FOLDER_ICON));
 	project->insertRow(insert, deramp);
-	QStandardItem* deramp_Rank = new QStandardItem("complex-3.0");
+	QStandardItem* deramp_Rank = new QStandardItem(rank);
 	project->setChild(insert, 1, deramp_Rank);
 	ret = conversion.write_array_to_h5(SAR_images_deramp[masterIndex - 1].c_str(), "mapped_lat", mappedLat);
 	ret = conversion.write_array_to_h5(SAR_images_deramp[masterIndex - 1].c_str(), "mapped_lon", mappedLon);
-	for (int i = 0; i < image_number; i++)
+	if (mode == 1)
 	{
-		ret = flat.SLC_deramp(slc, mappedDem, mappedLat, mappedLon, SAR_images[i].c_str());
-		ret = conversion.write_slc_to_h5(SAR_images_deramp[i].c_str(), slc);
-		ret = conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_deramp[i].c_str());
-		//ret = conversion.write_array_to_h5(SAR_images_deramp[i].c_str(), "mapped_lat", mappedLat);
-		//ret = conversion.write_array_to_h5(SAR_images_deramp[i].c_str(), "mapped_lon", mappedLon);
-		ret = conversion.read_int_from_h5(SAR_images[i].c_str(), "offset_row", &offset_row);
-		ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "offset_row", offset_row);
-		ret = conversion.read_int_from_h5(SAR_images[i].c_str(), "offset_col", &offset_col);
-		ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "offset_col", offset_col);
-		ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "range_len", sceneWidth);
-		ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "azimuth_len", sceneHeight);
-		double process = 10 + 80 / (double(image_number)) * double(i + 1);
-		//写入到工程管理树模型中
-		QFileInfo fileinfo = QFileInfo(QString(SAR_images_deramp.at(i).c_str()));
-		QStandardItem* deramp_images_name = new QStandardItem(fileinfo.baseName());
-		deramp_images_name->setToolTip("complex");
-		QStandardItem* deramp_images_path = new QStandardItem(fileinfo.absoluteFilePath());
-		deramp_images_name->setIcon(QIcon(IMAGEDATA_ICON));
-		deramp->appendRow(deramp_images_name);
-		deramp->setChild(i, 1, deramp_images_path);
+		for (int i = 0; i < image_number; i++)
+		{
+			ret = flat.SLC_deramp(slc, mappedDem, mappedLat, mappedLon, SAR_images[i].c_str());
+			ret = conversion.write_slc_to_h5(SAR_images_deramp[i].c_str(), slc);
+			ret = conversion.Copy_para_from_h5_2_h5(SAR_images[i].c_str(), SAR_images_deramp[i].c_str());
+			//ret = conversion.write_array_to_h5(SAR_images_deramp[i].c_str(), "mapped_lat", mappedLat);
+			//ret = conversion.write_array_to_h5(SAR_images_deramp[i].c_str(), "mapped_lon", mappedLon);
+			ret = conversion.read_int_from_h5(SAR_images[i].c_str(), "offset_row", &offset_row);
+			ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "offset_row", offset_row);
+			ret = conversion.read_int_from_h5(SAR_images[i].c_str(), "offset_col", &offset_col);
+			ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "offset_col", offset_col);
+			ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "range_len", sceneWidth);
+			ret = conversion.write_int_to_h5(SAR_images_deramp[i].c_str(), "azimuth_len", sceneHeight);
+			double process = 10 + 80 / (double(image_number)) * double(i + 1);
+			//写入到工程管理树模型中
+			QFileInfo fileinfo = QFileInfo(QString(SAR_images_deramp.at(i).c_str()));
+			QStandardItem* deramp_images_name = new QStandardItem(fileinfo.baseName());
+			deramp_images_name->setToolTip("complex");
+			QStandardItem* deramp_images_path = new QStandardItem(fileinfo.absoluteFilePath());
+			deramp_images_name->setIcon(QIcon(IMAGEDATA_ICON));
+			deramp->appendRow(deramp_images_name);
+			deramp->setChild(i, 1, deramp_images_path);
 
-		emit updateProcess(process, QString::fromLocal8Bit("进度..."));
+			emit updateProcess(process, QString::fromLocal8Bit("进度..."));
+		}
+	}
+	else
+	{
+		emit updateProcess(30, QString::fromLocal8Bit("进度..."));
+		ret = simulation.SLC_deramp_14(SAR_images, SAR_images_deramp, masterIndex, mappedDem, mappedLat, mappedLon, mode);
+		for (int i = 0; i < image_number; i++)
+		{
+			//写入到工程管理树模型中
+			QFileInfo fileinfo = QFileInfo(QString(SAR_images_deramp.at(i).c_str()));
+			QStandardItem* deramp_images_name = new QStandardItem(fileinfo.baseName());
+			deramp_images_name->setToolTip("complex");
+			QStandardItem* deramp_images_path = new QStandardItem(fileinfo.absoluteFilePath());
+			deramp_images_name->setIcon(QIcon(IMAGEDATA_ICON));
+			deramp->appendRow(deramp_images_name);
+			deramp->setChild(i, 1, deramp_images_path);
+		}
 	}
 
 	/*写入XML*/
@@ -2782,7 +2828,7 @@ void MyThread::SLC_deramp(
 	for (int i = 0; i < image_number; i++)
 	{
 		QString relativePath = QString("/%1/%2").arg(dst_node).arg(origin.at(i) + "_deramp.h5");
-		ret = xmlfile.XMLFile_add_SLC_deramp(dst_node.toStdString().c_str(), (origin.at(i) + "_deramp").toStdString().c_str(),
+		ret = xmlfile.XMLFile_add_SLC_deramp_14(mode, dst_node.toStdString().c_str(), (origin.at(i) + "_deramp").toStdString().c_str(),
 			relativePath.toStdString().c_str(), masterIndex);
 
 	}
@@ -4421,6 +4467,256 @@ void MyThread::import_DualFreqPingPong(
 		emit updateProcess(process, QString::fromLocal8Bit("正在导入..."));
 	}
 
+	emit sendModel(model);
+	emit endProcess();
+}
+
+void MyThread::interferogram_generation_14(
+	int master_index,
+	int multilook_rg, 
+	int multilook_az, 
+	QString savepath,
+	QString src_project,
+	QString src_node, 
+	QString dst_node,
+	QStandardItemModel* model
+)
+{
+	master_index = master_index - 1;
+	FormatConversion FC;
+	Deflat flat; Utils util;
+	QStandardItem* project = model->findItems(src_project)[0];
+	if (!project) return;
+	QStandardItem* origin_node = NULL;
+	QDir dir(savepath);
+	QString absolute_path;
+	if (!dir.exists(dst_node))
+	{
+		dir.mkdir(dst_node);
+		absolute_path = savepath + "/" + dst_node;
+	}
+	string rank;
+	int ret, mode; double level;
+	for (int i = 0; i < project->rowCount(); i++)
+	{
+		if (project->child(i, 0)->text() == dst_node)
+		{
+			rank = project->child(i, 1)->text().toStdString();
+			ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+			origin_node = project->child(i, 0);
+			break;
+		}
+	}
+	if (!origin_node) return;
+	QString master_regis_name = origin_node->child(master_index, 0)->text();
+	QString master_path = origin_node->child(master_index, 1)->text();
+	QFileInfo fileinfo(master_path);
+	QString master_name = fileinfo.baseName();
+	/*建立根节点*/
+	QStandardItem* interferometric_phase = new QStandardItem(dst_node);
+	interferometric_phase->setToolTip(src_project);
+	int insert = 0;
+	for (; insert < project->rowCount(); insert++)
+	{
+		int ret2, ret3;
+		int mode2, mode3; double level2, level3;
+		ret2 = sscanf(project->child(insert, 1)->text().toStdString().c_str(), "%d-complex-%lf", &mode2, &level2);
+		ret3 = sscanf(project->child(insert, 1)->text().toStdString().c_str(), "%d-phase-%lf", &mode3, &level3);
+		if ((ret3 == 2 && level3 <= 1.0) || ret2 == 2) continue;
+		else
+			break;
+	}
+	char new_rank[256];
+	sprintf(new_rank, "%d-phase-1.0", mode);
+	interferometric_phase->setIcon(QIcon(FOLDER_ICON));
+	project->insertRow(insert, interferometric_phase);
+	QStandardItem* interferometric_phase_Rank = new QStandardItem(new_rank);
+	project->setChild(insert, 1, interferometric_phase_Rank);
+
+	emit updateProcess(2, QString::fromLocal8Bit("开始处理……"));
+	ComplexMat Master;
+	ret = FC.read_slc_from_h5(master_path.toStdString().c_str(), Master);
+	Mat statevec, lon_coef, lat_coef, inc_coef, statevec2;
+	double prf, prf2, rangeSpacing, wavelength, nearRangeTime, acquisitionStartTime, acquisitionStopTime;
+	string start, end;
+	int offset_row, offset_col, sceneHeight, sceneWidth;
+	FC.read_array_from_h5(master_path.toStdString().c_str(), "state_vec", statevec);
+
+	FC.read_array_from_h5(master_path.toStdString().c_str(), "lon_coefficient", lon_coef);
+	FC.read_array_from_h5(master_path.toStdString().c_str(), "lat_coefficient", lat_coef);
+	FC.read_array_from_h5(master_path.toStdString().c_str(), "inc_coefficient", inc_coef);
+	FC.read_double_from_h5(master_path.toStdString().c_str(), "prf", &prf);
+
+	FC.read_double_from_h5(master_path.toStdString().c_str(), "range_spacing", &rangeSpacing);
+	FC.read_double_from_h5(master_path.toStdString().c_str(), "carrier_frequency", &wavelength);
+	wavelength = VEL_C / wavelength;
+	FC.read_int_from_h5(master_path.toStdString().c_str(), "offset_row", &offset_row);
+	FC.read_int_from_h5(master_path.toStdString().c_str(), "offset_col", &offset_col);
+	FC.read_int_from_h5(master_path.toStdString().c_str(), "range_len", &sceneWidth);
+	FC.read_int_from_h5(master_path.toStdString().c_str(), "azimuth_len", &sceneHeight);
+	FC.read_double_from_h5(master_path.toStdString().c_str(), "slant_range_first_pixel", &nearRangeTime);
+	nearRangeTime = nearRangeTime / VEL_C * 2.0;
+	FC.read_str_from_h5(master_path.toStdString().c_str(), "acquisition_start_time", start);
+	FC.read_str_from_h5(master_path.toStdString().c_str(), "acquisition_stop_time", end);
+	FC.utc2gps(start.c_str(), &acquisitionStartTime);
+	FC.utc2gps(end.c_str(), &acquisitionStopTime);
+	//地理编码信息
+	Mat mapped_lon, mapped_lat;
+	bool b_mapped = false;
+	if (multilook_az > 1 || multilook_rg > 1)
+	{
+		int rows_mapped = sceneHeight / multilook_az;
+		int cols_mapped = sceneWidth / multilook_rg;
+		if (0 == FC.read_array_from_h5(master_path.toStdString().c_str(), "mapped_lon", mapped_lon))
+		{
+			Mat lon_new(rows_mapped, cols_mapped, CV_32F);
+			for (int i = 0; i < rows_mapped; i++)
+			{
+				for (int j = 0; j < cols_mapped; j++)
+				{
+					lon_new.at<float>(i, j) = cv::mean(mapped_lon(cv::Range(i * multilook_az, i * multilook_az + multilook_az),
+						cv::Range(j * multilook_rg, j * multilook_rg + multilook_rg)))[0];
+				}
+			}
+			lon_new.copyTo(mapped_lon);
+			if (0 == FC.read_array_from_h5(master_path.toStdString().c_str(), "mapped_lat", mapped_lat))
+			{
+				for (int i = 0; i < rows_mapped; i++)
+				{
+					for (int j = 0; j < cols_mapped; j++)
+					{
+						lon_new.at<float>(i, j) = cv::mean(mapped_lat(cv::Range(i * multilook_az, i * multilook_az + multilook_az),
+							cv::Range(j * multilook_rg, j * multilook_rg + multilook_rg)))[0];
+					}
+				}
+				lon_new.copyTo(mapped_lat);
+				b_mapped = true;
+			}
+		}
+	}
+
+	XMLFile xml;
+	QString xml_path = save_path + "/" + project_name;
+	xml.XMLFile_load(xml_path.toStdString().c_str());
+
+	int count = origin_node->rowCount();
+	int pair = 1;
+	for (int i = 0; i < count; i++)
+	{
+		if (i == master_index)
+			continue;
+		else
+		{
+			if (QThread::currentThread()->isInterruptionRequested())
+			{
+				return;
+			}
+			QString slave_regis_name = origin_node->child(i, 0)->text();
+			QString slave_path = origin_node->child(i, 1)->text();
+			fileinfo = slave_path;
+			QString slave_name = fileinfo.baseName();
+
+			QString h5_path = QString("%1/%2/%3_%4.h5").arg(save_path).arg(file_name).arg(master_name).arg(slave_name);
+			QString h5_name = QString("%1_%2").arg(master_name).arg(slave_name);
+			QString phase_name = QString("%1_%2_phase").arg(master_name).arg(slave_name);
+			QString coh_name = QString("%1_%2_coh").arg(master_name).arg(slave_name);
+
+			ComplexMat Slave;
+			Mat phase;
+			ret = FC.read_slc_from_h5(slave_path.toStdString().c_str(), Slave);
+			if (Master.type() != CV_32F) Master.convertTo(Master, CV_32F);
+			if (Slave.type() != CV_32F) Slave.convertTo(Slave, CV_32F);
+			ret = util.Multilook(Master, Slave, 1, 1, phase);
+			/*写入h5*/
+			ret = FC.creat_new_h5(h5_path.toStdString().c_str());
+			QString master_relative_path = "/" + node_name + "/" + master_regis_name + ".h5";
+			QString slave_relative_path = "/" + node_name + "/" + slave_regis_name + ".h5";
+			ret = FC.write_str_to_h5(h5_path.toStdString().c_str(), "source_1", master_relative_path.toStdString().c_str());
+			ret = FC.write_str_to_h5(h5_path.toStdString().c_str(), "source_2", slave_relative_path.toStdString().c_str());
+			ret = FC.read_array_from_h5(slave_path.toStdString().c_str(), "state_vec", statevec2);
+			ret = FC.read_double_from_h5(slave_path.toStdString().c_str(), "prf", &prf2);
+			Mat phase_deflatted, flat_phase_coefficient;
+
+			if (isdeflat)
+			{
+				int ret = flat.deflat(statevec, statevec2, lon_coef, lat_coef, phase, offset_row, offset_col, 0,
+					1 / prf, 1 / prf2, 1, wavelength, phase_deflatted, flat_phase_coefficient);
+				phase_deflatted.copyTo(phase);
+				if (ret < 0) return;
+				FC.write_array_to_h5(h5_path.toStdString().c_str(), "flat_phase_coefficient", flat_phase_coefficient);
+			}
+			if (istopo_removal)
+			{
+				ret = flat.topography_simulation(phase_deflatted, statevec, statevec2, lon_coef, lat_coef, inc_coef, prf, prf2,
+					sceneHeight, sceneWidth, offset_row, offset_col, nearRangeTime, rangeSpacing, wavelength,
+					acquisitionStartTime, acquisitionStopTime, demPath.toStdString().c_str());
+				if (ret < 0) {
+
+				}
+				else {
+					phase_deflatted = phase - phase_deflatted;
+					util.wrap(phase_deflatted, phase);
+				}
+			}
+			if (multilook_rg > 1 || multilook_az > 1)
+			{
+				util.multilook(phase, phase_deflatted, multilook_rg, multilook_az);
+				phase_deflatted.copyTo(phase);
+			}
+			if (b_mapped)
+			{
+				FC.write_array_to_h5(h5_path.toStdString().c_str(), "mapped_lon", mapped_lon);
+				FC.write_array_to_h5(h5_path.toStdString().c_str(), "mapped_lat", mapped_lat);
+			}
+			FC.write_int_to_h5(h5_path.toStdString().c_str(), "azimuth_len", phase.rows);
+			FC.write_int_to_h5(h5_path.toStdString().c_str(), "range_len", phase.cols);
+			FC.write_int_to_h5(h5_path.toStdString().c_str(), "multilook_rg", multilook_rg);
+			FC.write_int_to_h5(h5_path.toStdString().c_str(), "multilook_az", multilook_az);
+			FC.write_array_to_h5(h5_path.toStdString().c_str(), "phase", phase);
+			FC.write_double_to_h5(h5_path.toStdString().c_str(), "range_spacing", rangeSpacing);
+			FC.write_double_to_h5(h5_path.toStdString().c_str(), "slant_range_first_pixel", nearRangeTime / 2.0 * VEL_C);
+			FC.write_double_to_h5(h5_path.toStdString().c_str(), "prf", prf);
+			FC.write_str_to_h5(h5_path.toStdString().c_str(), "acquisition_start_time", start.c_str());
+			FC.write_str_to_h5(h5_path.toStdString().c_str(), "acquisition_stop_time", end.c_str());
+			QStandardItem* interferometric_phase_name = new QStandardItem(phase_name);
+			interferometric_phase_name->setToolTip("phase");
+			QStandardItem* interferometric_phase_path = new QStandardItem(h5_path);
+			interferometric_phase_path->setToolTip(h5_name);
+			interferometric_phase_name->setIcon(QIcon(IMAGEDATA_ICON));
+			interferometric_phase->appendRow(interferometric_phase_name);
+			interferometric_phase->setChild(interferometric_phase->rowCount() - 1, 1, interferometric_phase_path);
+			xml.XMLFile_add_interferometric_phase(file_name.toStdString().c_str(), phase_name.toStdString().c_str(),
+				("/" + file_name + "/" + h5_name + ".h5").toStdString().c_str(), master_name.toStdString().c_str(), "phase-1.0", offset_row, offset_col,
+				isdeflat, istopo_removal, iscoherence, win_width, win_height, multilook_rg, multilook_az);
+			if (iscoherence)
+			{
+				if (QThread::currentThread()->isInterruptionRequested())
+				{
+					return;
+				}
+				Mat coherence;
+				util.phase_coherence(phase, win_width, win_height, coherence);
+				QStandardItem* coherence_name = new QStandardItem(coh_name);
+				coherence_name->setToolTip("coherence");
+				QStandardItem* coherence_path = new QStandardItem(h5_path);
+				coherence_path->setToolTip(h5_name);
+				coherence_name->setIcon(QIcon(IMAGEDATA_ICON));
+				interferometric_phase->appendRow(coherence_name);
+				interferometric_phase->setChild(interferometric_phase->rowCount() - 1, 1, coherence_path);
+				ret = FC.write_array_to_h5(h5_path.toStdString().c_str(), "coherence", coherence);
+				xml.XMLFile_add_interferometric_phase(file_name.toStdString().c_str(), coh_name.toStdString().c_str(),
+					("/" + file_name + "/" + h5_name + ".h5").toStdString().c_str(), master_name.toStdString().c_str(), "coherence-1.0", offset_row, offset_col,
+					isdeflat, istopo_removal, iscoherence, win_width, win_height, multilook_rg, multilook_az);
+			}
+			emit updateProcess(10 + pair * 80 / (count - 1), QString::fromLocal8Bit("生成第1%幅干涉图……").arg(pair));
+			pair++;
+
+
+
+
+		}
+	}
+	xml.XMLFile_save(xml_path.toStdString().c_str());
 	emit sendModel(model);
 	emit endProcess();
 }

@@ -144,6 +144,7 @@
     <addaction name="actionRegistration"/>
     <addaction name="actionCut"/>
     <addaction name="actionqucankao"/>
+    <addaction name="actionganshe"/>
     <addaction name="lvbo"/>
     <addaction name="jiechan"/>
     <addaction name="actiongaocheng"/>
@@ -479,6 +480,11 @@
   <action name="actionqucankao">
    <property name="text">
     <string>去除参考相位</string>
+   </property>
+  </action>
+  <action name="actionganshe">
+   <property name="text">
+    <string>干涉相位生成</string>
    </property>
   </action>
  </widget>

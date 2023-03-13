@@ -71,6 +71,7 @@ private slots:
     void on_actionExport_KML_triggered();
     void on_actionBaseline_Preview_triggered();
     void on_actionSLC_deramp_triggered();
+    void on_actionqucankao_triggered();
     void on_actionBaseline_Formation_triggered();
     void on_actionInterferometric_Formation_triggered();
     void on_actionDenoise_triggered();

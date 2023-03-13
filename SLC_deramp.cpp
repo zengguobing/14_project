@@ -21,6 +21,8 @@ SLC_deramp::SLC_deramp(QWidget* parent) :
     ui->setupUi(this);
     ui->progressBar->setValue(0);
     ui->progressBar->hide();
+    ui->radioButton_flat->setChecked(0);
+    ui->radioButton_reference->setChecked(1);
 
 }
 SLC_deramp::~SLC_deramp()
@@ -101,7 +103,11 @@ void SLC_deramp::ShowProjectList(QStandardItemModel* model)
     ui->comboBox_dst_node->clear();
     for (int i = 0; i < count; i++)
     {
-        if (project->child(i, 1)->text() == QString("complex-2.0"))
+        string rank;
+        rank = project->child(i, 1)->text().toStdString();
+        int ret, mode; double level;
+        ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+        if (ret == 2 && level >= 1.5 && level <= 2.5)
         {
             ui->comboBox_dst_node->addItem(project->child(i, 0)->text());
             if (!isnodefound)
@@ -109,7 +115,6 @@ void SLC_deramp::ShowProjectList(QStandardItemModel* model)
                 node = project->child(i, 0);
                 isnodefound = true;
             }
-
         }
     }
     if (!node)
@@ -146,7 +151,11 @@ void SLC_deramp::on_comboBox_currentIndexChanged()
         ui->comboBox_dst_node->clear();
         for (int i = 0; i < project->rowCount(); i++)
         {
-            if (project->child(i, 1)->text() == QString("complex-2.0"))
+            string rank;
+            rank = project->child(i, 1)->text().toStdString();
+            int ret, mode; double level;
+            ret = sscanf(rank.c_str(), "%d-complex-%lf", &mode, &level);
+            if (ret == 2 && level >= 1.5 && level <= 2.5)
             {
                 ui->comboBox_dst_node->addItem(project->child(i, 0)->text());
                 if (!isnodefound)
@@ -154,7 +163,6 @@ void SLC_deramp::on_comboBox_currentIndexChanged()
                     node = project->child(i, 0);
                     isnodefound = true;
                 }
-
             }
         }
         if (!isnodefound)
@@ -187,17 +195,19 @@ void SLC_deramp::ChangeVision(bool Editable)
     {
         ui->comboBox->setDisabled(0);
         ui->comboBox_dst_node->setDisabled(0);
-        //ui->comboBox_masterImage->setDisabled(0);
         ui->lineEdit->setDisabled(0);
         ui->buttonBox->buttons().at(0)->setDisabled(0);
+        ui->radioButton_flat->setDisabled(0);
+        ui->radioButton_reference->setDisabled(0);
     }
     else
     {
         ui->comboBox->setDisabled(1);
         ui->comboBox_dst_node->setDisabled(1);
-        //ui->comboBox_masterImage->setDisabled(1);
         ui->lineEdit->setDisabled(1);
         ui->buttonBox->buttons().at(0)->setDisabled(1);
+        ui->radioButton_flat->setDisabled(1);
+        ui->radioButton_reference->setDisabled(1);
     }
 
 
@@ -206,34 +216,7 @@ void SLC_deramp::ChangeVision(bool Editable)
 
 void SLC_deramp::on_comboBox_dst_node_currentIndexChanged()
 {
-   /* if (ui->comboBox_dst_node->count() > 0)
-    {
-        QStandardItem* project = copy->findItems(ui->comboBox->currentText())[0];
-        QStandardItem* node = NULL;
-        QModelIndex pro_index = copy->indexFromItem(project);
-        for (int i = 0; i < project->rowCount(); i++)
-        {
-            QString temp = project->child(i, 0)->text();
-            if (project->child(i, 0)->text() == ui->comboBox_dst_node->currentText())
-            {
-                node = project->child(i, 0); break;
-            }
-        }
 
-        if (!node)
-        {
-            QMessageBox::warning(NULL, "Warning!", QString::fromLocal8Bit("该节点无数据！"));
-            ui->comboBox_masterImage->clear();
-            return;
-        }
-        ui->comboBox_masterImage->clear();
-        int count = node->rowCount();
-        for (int i = 0; i < count; i++)
-        {
-            ui->comboBox_masterImage->addItem(node->child(i, 0)->text());
-        }
-        ui->comboBox_masterImage->setCurrentIndex(0);
-    }*/
 }
 
 void SLC_deramp::on_buttonBox_accepted()
@@ -298,7 +281,9 @@ void SLC_deramp::on_buttonBox_accepted()
     connect(ui->buttonBox, &QDialogButtonBox::rejected, this, &SLC_deramp::StopThread);// , Qt::QueuedConnection);
     SLC_deramp_thread->thread()->start();
     ChangeVision(false);
-    emit operate(index, ui->comboBox->currentText(), ui->comboBox_dst_node->currentText(), ui->lineEdit->text(), this->copy);
+    int flat = 2;
+    flat = ui->radioButton_flat->isChecked() ? 1 : 2;
+    emit operate(index, flat, ui->comboBox->currentText(), ui->comboBox_dst_node->currentText(), ui->lineEdit->text(), this->copy);
 
 }
 

@@ -204,6 +204,7 @@ public slots:
 	);
 	/*@brief 配准后SAR图像堆栈去参考相位处理（包括平地和地形相位）
 	* @param masterIndex                主图像序号（从1开始）
+	* @param flat_mode                  去平地模式（1：去平地相位，2：去参考地形相位）
 	* @param project_name               工程名
 	* @param src_node                   待处理数据节点名
 	* @param dst_node                   结果保存节点名
@@ -211,6 +212,7 @@ public slots:
 	*/
 	void SLC_deramp(
 		int masterIndex,
+		int flat_mode,
 		QString project_name,
 		QString src_node,
 		QString dst_node,
@@ -398,6 +400,27 @@ public slots:
 		QString savepath,
 		QString dst_node,
 		QString dst_project,
+		QStandardItemModel* model
+	);
+
+	/*@brief 干涉相位生成
+	* @param master_index                 主图像序列号（1-based）
+	* @param multilook_rg                 距离向多视倍数
+	* @param multilook_az                 方位向多视倍数
+	* @param savepath                     保存路径
+	* @param src_project                  待处理工程文件
+	* @param src_node                     待处理数据节点
+	* @param dst_node                     目标数据节点
+	* @param model                        工程树模型
+	*/
+	void interferogram_generation_14(
+		int master_index,
+		int multilook_rg,
+		int multilook_az,
+		QString savepath,
+		QString src_project,
+		QString src_node,
+		QString dst_node,
 		QStandardItemModel* model
 	);
 
